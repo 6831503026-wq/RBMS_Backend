@@ -265,8 +265,8 @@ Each group member should be listed with their actual contributions.
 | Group Member | Responsibilities |
 |---|---|
 | [Hein Zar Ne] | [Actual features and tasks] |
-| [Nyo Naing Loon] | [Actual features and tasks] |
-| [Thu Myat Hein] | [Actual features and tasks] |
+| [Nyo Naing Loon] | Implemented CRUD operations for the Items Controller, configured file handling, and designed and created the database.|
+| [Thu Myat Hein] | [CRUD for reports Controller ] |
 | [Phone Thit Tun] | [Actual features and tasks] |
 
 ## Database Information
