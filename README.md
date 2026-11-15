@@ -52,15 +52,11 @@ restaurant-storage-management/
 ├── src/
 │   ├── main/
 │   └── test/
-│
+├── db/
+│   └── schema.sql
 ├── frontend/
 │   ├── package.json
 │   └── src/
-│
-├── backend/
-│   └── db/
-│       └── schema.sql
-│
 ├── docs/
 ├── .gitignore
 └── README.md
@@ -91,7 +87,7 @@ Create the database and application user using your MySQL administrator account.
 The application uses the existing database schema located at:
 
 ```text
-backend/db/schema.sql
+db/schema.sql
 ```
 
 Import the schema:
@@ -99,13 +95,13 @@ Import the schema:
 **Windows PowerShell:**
 
 ```powershell
-mysql -u $env:DB_USER -p $env:DB_NAME < backend/db/schema.sql
+cmd /c "mysql -u %DB_USER% -p %DB_NAME% < db\schema.sql"
 ```
 
 **Linux / macOS:**
 
 ```bash
-mysql -u "$DB_USER" -p "$DB_NAME" < backend/db/schema.sql
+mysql -u "$DB_USER" -p "$DB_NAME" < db/schema.sql
 ```
 
 The Spring Boot application does not automatically create or migrate database tables.
@@ -287,7 +283,7 @@ restaurant_storage
 The existing database contract is maintained in:
 
 ```text
-backend/db/schema.sql
+db/schema.sql
 ```
 
 The production Spring Boot backend does not automatically create or migrate database tables.
