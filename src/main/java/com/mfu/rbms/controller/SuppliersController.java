@@ -161,12 +161,11 @@ public class SuppliersController {
     }
 
     private static long generatedId(KeyHolder keyHolder) {
-        Object id = keyHolder.getKeys().entrySet().stream()
-                .filter(entry -> "id".equalsIgnoreCase(String.valueOf(entry.getKey())))
-                .map(Map.Entry::getValue)
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException("Supplier insert did not return an id"));
-        return ((Number) id).longValue();
+        Number id = keyHolder.getKey();
+        if (id == null) {
+            throw new IllegalStateException("Supplier insert did not return an id");
+        }
+        return id.longValue();
     }
 }
 
