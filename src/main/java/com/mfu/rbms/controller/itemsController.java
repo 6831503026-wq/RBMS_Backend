@@ -225,7 +225,7 @@ public class ItemsController {
         }, keyHolder);
         long itemId = keyHolder.getKeys().entrySet().stream()
                 .filter(entry -> "id".equalsIgnoreCase(String.valueOf(entry.getKey())))
-                .map(Map.Entry::getValue)
+                .map(entry -> entry.getValue())
                 .map(Number.class::cast)
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("Item insert did not return an id"))

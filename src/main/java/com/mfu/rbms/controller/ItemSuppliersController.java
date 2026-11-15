@@ -87,7 +87,7 @@ public class ItemSuppliersController {
             throw new ApiException(400, "A price greater than zero is required");
         }
         try {
-            boolean changed = transactions.execute(status -> {
+            transactions.executeWithoutResult(status -> {
                 List<Map<String, Object>> current = jdbc.queryForList(
                         "SELECT price FROM item_suppliers WHERE id = ? FOR UPDATE", id);
                 if (current.isEmpty()) {
@@ -95,13 +95,12 @@ public class ItemSuppliersController {
                 }
                 Object oldPrice = current.get(0).get("price");
                 if (sameNumericValue(oldPrice, rawPrice)) {
-                    return false;
+                    return;
                 }
                 jdbc.update("UPDATE item_suppliers SET price = ? WHERE id = ?", rawPrice, id);
                 jdbc.update("INSERT INTO price_history (item_supplier_id, old_price, new_price, changed_by) " +
                                 "VALUES (?, ?, ?, ?)",
                         id, oldPrice, rawPrice, currentUserId());
-                return true;
             });
             return ApiRows.normalize(jdbc.queryForMap(SELECT + "WHERE isup.id = ?", id));
         } catch (ApiException ex) {
