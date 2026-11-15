@@ -258,18 +258,17 @@ Except for `POST /auth/login`, API routes require a valid bearer JWT.
 
 Each group member should be listed with their actual contributions.
 
+|## Group Members and Responsibilities
+
 | Group Member | Responsibilities |
-|
-|  [Hein Zar Ne]
-   Designed and Organinzed Database ,
-   Implemented Email Service,
+|---|---|
+| Hein Zar Ne | Designed and organized the database structure and implemented the email service, Fixed some errors |
 
+| Nyo Naing Loon | Implemented CRUD operations for the Items Controller, configured file handling, and designed and created the database, Fixed some errors |
 
-|  [Nyo Naing Loon] | 
-   Implemented CRUD operations for the Items Controller, 
-   configured file handling,
-   and designed and created 
-   the database.|
+| Thu Myat Hein | Managed project deployment and configuration on the cloud platform, Fixed some errors |
+
+| Phone Thit Tun | Implemented CRUD operations for the Supplier and Storage Controllers. |
 
 
 ## Database Information
