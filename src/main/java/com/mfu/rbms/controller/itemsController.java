@@ -3,17 +3,23 @@ package com.mfu.rbms.controller;
 import com.mfu.rbms.api.ApiException;
 import com.mfu.rbms.api.ApiRows;
 import com.mfu.rbms.api.ApiValidation;
+import com.mfu.rbms.model.Item;
+import com.mfu.rbms.model.ItemSupplier;
+import com.mfu.rbms.model.Supplier;
+import com.mfu.rbms.repository.ItemRepository;
+import com.mfu.rbms.repository.ItemSupplierRepository;
+import com.mfu.rbms.repository.SupplierRepository;
 import com.mfu.rbms.security.ApiIdentity;
 import com.mfu.rbms.service.LowStockEmailService;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.support.GeneratedKeyHolder;
-import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
-import java.sql.Statement;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -25,39 +31,43 @@ public class ItemsController {
     private static final List<String> ITEM_FIELDS =
             List.of("name", "unit", "amount", "min_stock", "last_alert_date");
 
+    private final ItemRepository itemRepository;
+    private final SupplierRepository supplierRepository;
+    private final ItemSupplierRepository itemSupplierRepository;
     private final JdbcTemplate jdbc;
-    private final TransactionTemplate transactions;
     private final LowStockEmailService emailService;
 
     public ItemsController(
+            ItemRepository itemRepository,
+            SupplierRepository supplierRepository,
+            ItemSupplierRepository itemSupplierRepository,
             JdbcTemplate jdbc,
-            TransactionTemplate transactions,
             LowStockEmailService emailService) {
+        this.itemRepository = itemRepository;
+        this.supplierRepository = supplierRepository;
+        this.itemSupplierRepository = itemSupplierRepository;
         this.jdbc = jdbc;
-        this.transactions = transactions;
         this.emailService = emailService;
     }
 
     @GetMapping
     public List<Map<String, Object>> list() {
         try {
-            List<Map<String, Object>> items = ApiRows.normalize(jdbc.queryForList("SELECT * FROM items"));
-            List<Map<String, Object>> suppliers = ApiRows.normalize(jdbc.queryForList(
-                    "SELECT isup.item_id, isup.supplier_id, s.name AS supplier_name, isup.price " +
-                            "FROM item_suppliers isup JOIN suppliers s ON s.id = isup.supplier_id " +
-                            "ORDER BY isup.item_id, isup.price ASC, s.name ASC"));
-            for (Map<String, Object> item : items) {
-                List<Map<String, Object>> itemSuppliers = new ArrayList<>();
-                for (Map<String, Object> supplier : suppliers) {
-                    if (String.valueOf(supplier.get("item_id")).equals(String.valueOf(item.get("id")))) {
-                        Map<String, Object> link = new LinkedHashMap<>();
-                        link.put("supplier_id", supplier.get("supplier_id"));
-                        link.put("supplier_name", supplier.get("supplier_name"));
-                        link.put("price", supplier.get("price"));
-                        itemSuppliers.add(link);
-                    }
-                }
-                item.put("suppliers", itemSuppliers);
+            Map<Long, List<Map<String, Object>>> suppliersByItem = new LinkedHashMap<>();
+            for (ItemSupplier itemSupplier : itemSupplierRepository.findAllWithItemAndSupplier()) {
+                Map<String, Object> link = new LinkedHashMap<>();
+                link.put("supplier_id", itemSupplier.getSupplier().getId());
+                link.put("supplier_name", itemSupplier.getSupplier().getName());
+                link.put("price", decimalText(itemSupplier.getPrice(), 4));
+                suppliersByItem.computeIfAbsent(itemSupplier.getItem().getId(), key -> new ArrayList<>())
+                        .add(link);
+            }
+
+            List<Map<String, Object>> items = new ArrayList<>();
+            for (Item item : itemRepository.findAll()) {
+                Map<String, Object> row = itemRow(item);
+                row.put("suppliers", suppliersByItem.getOrDefault(item.getId(), List.of()));
+                items.add(row);
             }
             return items;
         } catch (RuntimeException ex) {
@@ -68,11 +78,9 @@ public class ItemsController {
     @GetMapping("/{id}")
     public Map<String, Object> get(@PathVariable String id) {
         try {
-            List<Map<String, Object>> rows = jdbc.queryForList("SELECT * FROM items WHERE id = ?", id);
-            if (rows.isEmpty()) {
-                throw new ApiException(404, "Item not found");
-            }
-            return ApiRows.normalize(rows.get(0));
+            Item item = itemRepository.findById(Long.parseLong(id))
+                    .orElseThrow(() -> new ApiException(404, "Item not found"));
+            return itemRow(item);
         } catch (ApiException ex) {
             throw ex;
         } catch (RuntimeException ex) {
@@ -99,6 +107,7 @@ public class ItemsController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @Transactional
     public Map<String, Object> create(
             @RequestBody Map<String, Object> body,
             @AuthenticationPrincipal ApiIdentity actor) {
@@ -117,23 +126,35 @@ public class ItemsController {
             }
         }
         try {
-            if (jdbc.queryForList("SELECT id FROM suppliers WHERE id = ?", supplierId).isEmpty()) {
-                throw new ApiException(400, "supplier_id must reference an existing supplier");
-            }
+            long supplierKey = Long.parseLong(supplierId.toString());
+            Supplier supplier = supplierRepository.findById(supplierKey)
+                    .orElseThrow(() -> new ApiException(
+                            400, "supplier_id must reference an existing supplier"));
 
-            Map<String, Object> data = new LinkedHashMap<>();
-            for (String field : ITEM_FIELDS) {
-                if (body.containsKey(field)) {
-                    data.put(field, body.get(field));
-                }
+            Item item = new Item();
+            item.setName(name);
+            item.setUnit(unit);
+            if (body.containsKey("amount")) {
+                item.setAmount(decimal(body.get("amount")));
             }
-            data.put("name", name);
-            data.put("unit", unit);
-            data.put("avg_cost", price);
+            if (body.containsKey("min_stock")) {
+                item.setMinStock(decimal(body.get("min_stock")));
+            }
+            item.setAvgCost(decimal(price));
+            if (body.containsKey("last_alert_date")) {
+                item.setLastAlertDate(localDate(body.get("last_alert_date")));
+            }
+            item = itemRepository.saveAndFlush(item);
 
-            long itemId = transactions.execute(status -> insertItem(data, supplierId, price, actor));
-            Map<String, Object> created = ApiRows.normalize(
-                    jdbc.queryForMap("SELECT * FROM items WHERE id = ?", itemId));
+            ItemSupplier itemSupplier = new ItemSupplier();
+            itemSupplier.setItem(item);
+            itemSupplier.setSupplier(supplier);
+            itemSupplier.setPrice(decimal(price));
+            itemSupplier = itemSupplierRepository.saveAndFlush(itemSupplier);
+
+            insertPriceHistoryAndStorageLog(item, itemSupplier, price, body, actor);
+
+            Map<String, Object> created = itemRow(item);
             if (ApiValidation.number(created.get("amount")) <= ApiValidation.number(created.get("min_stock"))) {
                 emailService.sendAfterCreate(created);
             }
@@ -165,24 +186,25 @@ public class ItemsController {
                 || ApiValidation.number(body.get("min_stock")) < 0)) {
             throw new ApiException(400, "min_stock must be a non-negative number");
         }
-        Map<String, Object> values = new LinkedHashMap<>();
-        for (String field : ITEM_FIELDS) {
-            if (body.containsKey(field)) {
-                values.put(field, body.get(field));
-            }
-        }
-        if (values.isEmpty()) {
+        if (ITEM_FIELDS.stream().noneMatch(body::containsKey)) {
             throw new ApiException(400, "No valid item fields provided");
         }
         try {
-            List<Object> args = new ArrayList<>(values.values());
-            String assignments = String.join(", ", values.keySet().stream().map(field -> field + " = ?").toList());
-            args.add(id);
-            int changed = jdbc.update("UPDATE items SET " + assignments + " WHERE id = ?", args.toArray());
-            if (changed == 0) {
-                throw new ApiException(404, "Item not found");
+            Item item = itemRepository.findById(Long.parseLong(id))
+                    .orElseThrow(() -> new ApiException(404, "Item not found"));
+            if (body.containsKey("name")) {
+                item.setName((String) body.get("name"));
             }
-            return ApiRows.normalize(jdbc.queryForMap("SELECT * FROM items WHERE id = ?", id));
+            if (body.containsKey("unit")) {
+                item.setUnit((String) body.get("unit"));
+            }
+            if (body.containsKey("min_stock")) {
+                item.setMinStock(decimal(body.get("min_stock")));
+            }
+            if (body.containsKey("last_alert_date")) {
+                item.setLastAlertDate(localDate(body.get("last_alert_date")));
+            }
+            return itemRow(itemRepository.saveAndFlush(item));
         } catch (ApiException ex) {
             throw ex;
         } catch (RuntimeException ex) {
@@ -192,12 +214,22 @@ public class ItemsController {
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Transactional
     public void delete(@PathVariable String id) {
         try {
-            int changed = jdbc.update("DELETE FROM items WHERE id = ?", id);
-            if (changed == 0) {
-                throw new ApiException(404, "Item not found");
-            }
+            Item item = itemRepository.findById(Long.parseLong(id))
+                    .orElseThrow(() -> new ApiException(404, "Item not found"));
+
+            jdbc.update("DELETE ph FROM price_history ph " +
+                    "JOIN item_suppliers isup ON isup.id = ph.item_supplier_id " +
+                    "WHERE isup.item_id = ?", item.getId());
+            jdbc.update("DELETE FROM storage_logs WHERE item_id = ?", item.getId());
+
+            List<ItemSupplier> itemSuppliers = itemSupplierRepository.findAllWithItemAndSupplier().stream()
+                    .filter(itemSupplier -> itemSupplier.getItem().getId().equals(item.getId()))
+                    .toList();
+            itemSupplierRepository.deleteAll(itemSuppliers);
+            itemRepository.delete(item);
         } catch (ApiException ex) {
             throw ex;
         } catch (RuntimeException ex) {
@@ -205,44 +237,46 @@ public class ItemsController {
         }
     }
 
-    private long insertItem(
-            Map<String, Object> data,
-            Object supplierId,
+    private void insertPriceHistoryAndStorageLog(
+            Item item,
+            ItemSupplier itemSupplier,
             Object price,
+            Map<String, Object> body,
             ApiIdentity actor) {
-        List<String> fields = new ArrayList<>(data.keySet());
-        String fieldSql = String.join(", ", fields);
-        String placeholders = String.join(", ", fields.stream().map(field -> "?").toList());
-        KeyHolder keyHolder = new GeneratedKeyHolder();
-        jdbc.update(connection -> {
-            var statement = connection.prepareStatement(
-                    "INSERT INTO items (" + fieldSql + ") VALUES (" + placeholders + ")",
-                    Statement.RETURN_GENERATED_KEYS);
-            for (int index = 0; index < fields.size(); index++) {
-                statement.setObject(index + 1, data.get(fields.get(index)));
-            }
-            return statement;
-        }, keyHolder);
-        long itemId = keyHolder.getKeys().entrySet().stream()
-                .filter(entry -> "id".equalsIgnoreCase(String.valueOf(entry.getKey())))
-                .map(entry -> entry.getValue())
-                .map(Number.class::cast)
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException("Item insert did not return an id"))
-                .longValue();
-        jdbc.update("INSERT INTO item_suppliers (item_id, supplier_id, price) VALUES (?, ?, ?)",
-                itemId, supplierId, price);
-        long itemSupplierId = jdbc.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
         jdbc.update("INSERT INTO price_history (item_supplier_id, old_price, new_price, changed_by) " +
                         "VALUES (?, NULL, ?, ?)",
-                itemSupplierId, price, actor.id());
-        if (ApiValidation.number(data.get("amount")) > 0) {
+                itemSupplier.getId(), price, actor.id());
+        if (ApiValidation.number(body.get("amount")) > 0) {
             jdbc.update("INSERT INTO storage_logs " +
                             "(item_id, action, amount_changed, staff_name, user_id, unit_cost, supplier_id) " +
                             "VALUES (?, 'restock', ?, ?, ?, ?, ?)",
-                    itemId, data.get("amount"), actor.displayName(), actor.id(), price, supplierId);
+                    item.getId(), body.get("amount"), actor.displayName(), actor.id(), price,
+                    itemSupplier.getSupplier().getId());
         }
-        return itemId;
+    }
+
+    private static Map<String, Object> itemRow(Item item) {
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("id", item.getId());
+        row.put("name", item.getName());
+        row.put("unit", item.getUnit());
+        row.put("amount", decimalText(item.getAmount(), 3));
+        row.put("min_stock", decimalText(item.getMinStock(), 3));
+        row.put("avg_cost", decimalText(item.getAvgCost(), 4));
+        row.put("last_alert_date", item.getLastAlertDate() == null ? null : item.getLastAlertDate().toString());
+        return ApiRows.normalize(row);
+    }
+
+    private static String decimalText(BigDecimal value, int scale) {
+        return value == null ? null : value.setScale(scale, RoundingMode.HALF_UP).toPlainString();
+    }
+
+    private static BigDecimal decimal(Object value) {
+        return value == null ? null : new BigDecimal(value.toString());
+    }
+
+    private static LocalDate localDate(Object value) {
+        return value == null ? null : LocalDate.parse(value.toString());
     }
 
     private static String requiredText(Object value, String field, int maxLength) {
