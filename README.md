@@ -10,21 +10,21 @@ The Restaurant Storage Management System is a web-based application designed to 
 
 Replace the examples below with the student ID and full name of every group member.
 
-- [STUDENT ID] [FULL NAME]
-- [STUDENT ID] [FULL NAME]
-- [STUDENT ID] [FULL NAME]
-- [STUDENT ID] [FULL NAME]
+- 6831503005 Hein Zar Ne
+- 6831503026 Nyo Naing Loon
+- 6831503014 Phone Thit Tun
+- 6831503028 Thu Myat Hein
 
 ## Technologies Used
 
-| Component | Technology |
-|---|---|
-| Backend | Java 17+, Spring Boot |
-| Frontend | React, Vite |
-| Database | MySQL |
-| Authentication | JWT |
-| Build Tool | Maven |
-| Version Control | Git and GitHub |
+| Component       | Technology           |
+| --------------- | -------------------- |
+| Backend         | Java 21, Spring Boot |
+| Frontend        | React, Vite          |
+| Database        | MySQL                |
+| Authentication  | JWT                  |
+| Build Tool      | Maven                |
+| Version Control | Git and GitHub       |
 
 ## Main Features
 
@@ -40,6 +40,18 @@ Replace the examples below with the student ID and full name of every group memb
 - Dashboard and inventory reports.
 - Low-stock email notification attempts.
 - Transactional stock updates.
+
+## Core Entity Overview
+
+This project is built around a small set of JPA entities that model the restaurant inventory system:
+
+- `User`: Represents an application user account. It is used for authentication, authorization, and user activity such as notification updates.
+- `Item`: Represents an inventory item with fields such as item name, unit, current stock quantity, minimum stock threshold, average cost, and last alert date.
+- `Supplier`: Represents a supplier or vendor with contact information such as name, email, and phone number.
+- `ItemSupplier`: A join entity that connects an `Item` to a `Supplier` and stores the associated purchase price.
+- `EmailSetting`: Stores notification-related configuration and references the user who last updated the email settings.
+
+These entities work together to support inventory control, purchase tracking, low-stock alerts, and reporting. In summary, users manage the system, items represent stock, suppliers provide source data, and `ItemSupplier` links the inventory to vendor pricing and email settings support notification workflows.
 
 ## Project Structure
 
@@ -112,24 +124,24 @@ Do not use the legacy destructive Node seed against a production database.
 
 Configure the following variables in your environment or secret manager:
 
-| Variable | Description |
-|---|---|
-| DB_HOST | MySQL host |
-| DB_PORT | MySQL port (default: 3306) |
-| DB_NAME | Database name |
-| DB_USER | Database username |
-| DB_PASSWORD | Database password |
-| PORT | Backend port (default: 5001) |
-| JWT_SECRET | Private JWT signing secret (at least 32 bytes) |
-| PO_EMAIL | Low-stock notification recipient |
-| SMTP_HOST | SMTP server |
-| SMTP_PORT | SMTP server port |
-| SMTP_SECURE | SMTP security configuration |
-| SMTP_USER | SMTP username |
-| SMTP_PASSWORD | SMTP password |
-| MAIL_FROM | Optional sender email |
-| RESTAURANT_TIME_ZONE | Report timezone (default: Asia/Bangkok) |
-| CORS_ALLOWED_ORIGINS | Allowed frontend origins |
+| Variable             | Description                                    |
+| -------------------- | ---------------------------------------------- |
+| DB_HOST              | MySQL host                                     |
+| DB_PORT              | MySQL port (default: 3306)                     |
+| DB_NAME              | Database name                                  |
+| DB_USER              | Database username                              |
+| DB_PASSWORD          | Database password                              |
+| PORT                 | Backend port (default: 5001)                   |
+| JWT_SECRET           | Private JWT signing secret (at least 32 bytes) |
+| PO_EMAIL             | Low-stock notification recipient               |
+| SMTP_HOST            | SMTP server                                    |
+| SMTP_PORT            | SMTP server port                               |
+| SMTP_SECURE          | SMTP security configuration                    |
+| SMTP_USER            | SMTP username                                  |
+| SMTP_PASSWORD        | SMTP password                                  |
+| MAIL_FROM            | Optional sender email                          |
+| RESTAURANT_TIME_ZONE | Report timezone (default: Asia/Bangkok)        |
+| CORS_ALLOWED_ORIGINS | Allowed frontend origins                       |
 
 Additional optional Gmail credential fallbacks:
 
@@ -142,7 +154,15 @@ The `.env.example` file is provided only as a reference for environment variable
 
 ### Step 4: Build and run the backend
 
-From the repository root:
+You can run the backend either with the standard Maven commands or with the included local script.
+
+**Recommended local script (Windows):**
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\run-local.ps1
+```
+
+This script loads variables from a local `.env` file in the project root, starts the Spring Boot app, and restores the original environment variables after the process ends.
 
 **Windows:**
 
@@ -198,10 +218,10 @@ If the backend is hosted elsewhere, configure `VITE_API_URL` accordingly.
 
 The application supports two roles:
 
-| Role | Access |
-|---|---|
-| Manager | Account management, reports, inventory management, and stock transactions |
-| Kitchen Staff | Inventory reading and stock transactions |
+| Role          | Access                                                                    |
+| ------------- | ------------------------------------------------------------------------- |
+| Manager       | Account management, reports, inventory management, and stock transactions |
+| Kitchen Staff | Inventory reading and stock transactions                                  |
 
 Optional demo accounts can be created by setting:
 
@@ -228,26 +248,26 @@ All API routes use the `/api` prefix.
 
 Except for `POST /auth/login`, API routes require a valid bearer JWT.
 
-| Method | Endpoint | Description |
-|---|---|---|
-| POST | `/auth/login` | User login |
-| GET | `/auth/me` | Current user |
-| GET, POST | `/accounts` | Account management |
-| PUT | `/accounts/:id` | Update account |
-| PUT | `/accounts/:id/password` | Update password |
-| PUT | `/accounts/:id/active` | Change account status |
-| GET, POST | `/items` | Item management |
-| GET, PUT, DELETE | `/items/:id` | Individual item operations |
-| GET | `/items/:id/price-history` | Item price history |
-| GET, POST | `/suppliers` | Supplier management |
-| GET, POST | `/item-suppliers` | Item-supplier management |
-| GET | `/storage-logs` | Storage transaction history |
-| POST | `/stock/bulk-change` | Stock transactions |
-| GET | `/reports/dashboard` | Dashboard data |
-| GET | `/reports/usage` | Usage report |
-| GET | `/reports/waste` | Waste report |
-| GET | `/reports/restock-suggestions` | Restock suggestions |
-| GET | `/reports/what-to-buy` | Purchasing recommendations |
+| Method           | Endpoint                       | Description                 |
+| ---------------- | ------------------------------ | --------------------------- |
+| POST             | `/auth/login`                  | User login                  |
+| GET              | `/auth/me`                     | Current user                |
+| GET, POST        | `/accounts`                    | Account management          |
+| PUT              | `/accounts/:id`                | Update account              |
+| PUT              | `/accounts/:id/password`       | Update password             |
+| PUT              | `/accounts/:id/active`         | Change account status       |
+| GET, POST        | `/items`                       | Item management             |
+| GET, PUT, DELETE | `/items/:id`                   | Individual item operations  |
+| GET              | `/items/:id/price-history`     | Item price history          |
+| GET, POST        | `/suppliers`                   | Supplier management         |
+| GET, POST        | `/item-suppliers`              | Item-supplier management    |
+| GET              | `/storage-logs`                | Storage transaction history |
+| POST             | `/stock/bulk-change`           | Stock transactions          |
+| GET              | `/reports/dashboard`           | Dashboard data              |
+| GET              | `/reports/usage`               | Usage report                |
+| GET              | `/reports/waste`               | Waste report                |
+| GET              | `/reports/restock-suggestions` | Restock suggestions         |
+| GET              | `/reports/what-to-buy`         | Purchasing recommendations  |
 
 **Role permissions:**
 
@@ -260,16 +280,15 @@ Each group member should be listed with their actual contributions.
 
 |## Group Members and Responsibilities
 
-| Group Member | Responsibilities |
-|---|---|
-| Hein Zar Ne | Designed and organized the database structure and implemented the email service, Fixed some errors |
+| Group Member | Responsibilities                                                                                   |
+| ------------ | -------------------------------------------------------------------------------------------------- |
+| Hein Zar Ne  | Designed and organized the database structure and implemented the email service, Fixed some errors |
 
 | Nyo Naing Loon | Implemented CRUD operations for the Items Controller, configured file handling, and designed and created the database, Fixed some errors |
 
 | Thu Myat Hein | Managed project deployment and configuration on the cloud platform, Fixed some errors |
 
 | Phone Thit Tun | Implemented CRUD operations for the Supplier and Storage Controllers. |
-
 
 ## Database Information
 
