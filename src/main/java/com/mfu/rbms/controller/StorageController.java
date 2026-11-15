@@ -1,9 +1,9 @@
-package com.mfu.rmbs.controller;
+package com.mfu.rbms.controller;
 
-import com.mfu.rmbs.api.ApiException;
-import com.mfu.rmbs.api.ApiRows;
-import com.mfu.rmbs.api.ApiValidation;
-import com.mfu.rmbs.security.ApiIdentity;
+import com.mfu.rbms.api.ApiException;
+import com.mfu.rbms.api.ApiRows;
+import com.mfu.rbms.api.ApiValidation;
+import com.mfu.rbms.security.ApiIdentity;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
